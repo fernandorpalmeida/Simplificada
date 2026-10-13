@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calculadora de Importação Simplificada (SP)</title>
+  <title>Simulador de Importação Simplificada & Precificação Mercado Livre</title>
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Chart.js via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Inter', sans-serif; }
     input[type=number]::-webkit-inner-spin-button,
@@ -23,19 +23,20 @@
     }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen">
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+  
   <!-- Header -->
-  <header class="bg-slate-900 text-white border-b border-slate-800 py-6 px-4 shadow-sm">
-    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+  <header class="bg-slate-900 text-white border-b border-slate-800 py-6 px-4 shadow-md sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          <span>📦</span> Calculadora de Importação Simplificada
+        <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+          <span>📦</span> Importação Simplificada (SP) <span class="text-slate-500 font-normal">➜</span> <span class="text-yellow-400">Mercado Livre</span>
         </h1>
-        <p class="text-xs sm:text-sm text-slate-400 mt-1">
-          Regime de Tributação Simplificada (RTS até US$ 3.000) • Alíquotas para o Estado de São Paulo
+        <p class="text-xs text-slate-400 mt-1">
+          Cálculo do Landed Cost (RTS 60% + ICMS SP 18% por dentro) + Precificação de Venda por Margem de Contribuição
         </p>
       </div>
-      <div class="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+      <div class="flex items-center gap-2 bg-slate-800/90 px-3 py-1.5 rounded-lg border border-slate-700 text-xs self-start md:self-auto">
         <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
         <span class="text-slate-300">Dólar Comercial:</span>
         <span id="headerExchangeRate" class="font-mono font-semibold text-emerald-400">R$ 5,50</span>
@@ -43,292 +44,365 @@
     </div>
   </header>
 
-  <!-- Container Principal -->
-  <main class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+  <!-- Container Geral -->
+  <main class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8">
     
-    <!-- Alerta Limite RTS -->
-    <div id="rtsWarning" class="hidden mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
+    <!-- Alerta Limite RTS US$ 3.000 -->
+    <div id="rtsWarning" class="hidden bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
       <div class="flex items-start">
         <span class="text-amber-600 text-xl mr-3">⚠️</span>
         <div>
           <h3 class="text-sm font-semibold text-amber-800">Atenção: Limite do Regime Simplificado Ultrapassado</h3>
           <p class="text-xs text-amber-700 mt-0.5">
-            O valor aduaneiro total excede <strong>US$ 3.000,00</strong>. Remessas acima deste limite não são elegíveis ao RTS simplificado e entram no regime de importação formal (via Siscomex / Declaração de Importação comum).
+            O valor aduaneiro total da remessa excede <strong>US$ 3.000,00</strong>. Remessas acima deste valor exigem desembaraço no regime de importação formal via Siscomex.
           </p>
         </div>
       </div>
     </div>
 
+    <!-- Grid Principal (2 Colunas Principais) -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
       
-      <!-- Painel de Entradas (Formulário) -->
-      <section class="lg:col-span-6 space-y-6">
-        
-        <!-- Bloco 1: Moeda e Câmbio -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-2">
-            <span>🌐</span> Moeda & Câmbio
-          </h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-xs font-medium text-slate-600 mb-1">Moeda dos Valores</label>
-              <div class="grid grid-cols-2 bg-slate-100 p-1 rounded-lg">
-                <button type="button" id="btnCurrencyUSD" class="py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-sm transition-all">USD ($)</button>
-                <button type="button" id="btnCurrencyBRL" class="py-1.5 text-xs font-semibold rounded-md text-slate-500 hover:text-slate-800 transition-all">BRL (R$)</button>
-              </div>
+      <!-- ================= COLUNA 1: ENTRADAS (CONFIGURAÇÃO) ================= -->
+      <div class="lg:col-span-6 space-y-6">
+
+        <!-- ETAPA 1: CUSTOS DE IMPORTAÇÃO -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h2 class="text-sm font-bold text-slate-800 flex items-center gap-2 uppercase tracking-wide">
+              <span class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">1</span>
+              Custo de Importação (Landed Cost)
+            </h2>
+            <div class="grid grid-cols-2 bg-slate-100 p-0.5 rounded-lg text-xs">
+              <button type="button" id="btnCurrencyUSD" class="px-2.5 py-1 font-semibold rounded-md bg-white text-slate-800 shadow-sm transition-all">USD ($)</button>
+              <button type="button" id="btnCurrencyBRL" class="px-2.5 py-1 font-semibold rounded-md text-slate-500 hover:text-slate-800 transition-all">BRL (R$)</button>
             </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div class="flex items-center justify-between mb-1">
                 <label for="exchangeRate" class="text-xs font-medium text-slate-600">Cotação do Dólar (R$)</label>
-                <button type="button" id="btnFetchRate" class="text-[11px] text-blue-600 hover:text-blue-700 underline font-medium">Buscar agora</button>
+                <button type="button" id="btnFetchRate" class="text-[11px] text-blue-600 hover:text-blue-800 underline font-medium">Buscar cotação</button>
               </div>
               <div class="relative">
                 <span class="absolute left-3 top-2.5 text-xs text-slate-400">R$</span>
-                <input type="number" id="exchangeRate" step="0.001" min="0.01" value="5.500" class="w-full pl-8 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none">
+                <input type="number" id="exchangeRate" step="0.001" min="0.01" value="5.500" class="w-full pl-8 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none font-mono">
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Bloco 2: Itens e Logística Internacional -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-            <span>📦</span> Custo Aduaneiro (CIF)
-          </h2>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label for="productValue" class="block text-xs font-medium text-slate-600 mb-1">Valor dos Produtos (<span class="currencyLabel">USD</span>)</label>
-              <div class="relative">
-                <span class="absolute left-3 top-2.5 text-xs text-slate-400 currencyPrefix">$</span>
-                <input type="number" id="productValue" step="0.01" min="0" value="100.00" class="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-              </div>
-            </div>
-            <div>
-              <label for="productQuantity" class="block text-xs font-medium text-slate-600 mb-1">Quantidade de Peças / Itens</label>
-              <input type="number" id="productQuantity" step="1" min="1" value="1" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <label for="productQuantity" class="block text-xs font-medium text-slate-600 mb-1">Quantidade Total de Peças</label>
+              <input type="number" id="productQuantity" step="1" min="1" value="10" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono">
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label for="shippingValue" class="block text-xs font-medium text-slate-600 mb-1">Frete Internacional (<span class="currencyLabel">USD</span>)</label>
+              <label for="productValue" class="block text-xs font-medium text-slate-600 mb-1">Produtos (<span class="currencyLabel">USD</span>)</label>
               <div class="relative">
-                <span class="absolute left-3 top-2.5 text-xs text-slate-400 currencyPrefix">$</span>
-                <input type="number" id="shippingValue" step="0.01" min="0" value="30.00" class="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <span class="absolute left-2.5 top-2.5 text-xs text-slate-400 currencyPrefix">$</span>
+                <input type="number" id="productValue" step="0.01" min="0" value="200.00" class="w-full pl-6 pr-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono">
               </div>
             </div>
             <div>
-              <label for="insuranceValue" class="block text-xs font-medium text-slate-600 mb-1">Seguro Internacional (<span class="currencyLabel">USD</span>)</label>
+              <label for="shippingValue" class="block text-xs font-medium text-slate-600 mb-1">Frete Int. (<span class="currencyLabel">USD</span>)</label>
               <div class="relative">
-                <span class="absolute left-3 top-2.5 text-xs text-slate-400 currencyPrefix">$</span>
-                <input type="number" id="insuranceValue" step="0.01" min="0" value="0.00" class="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <span class="absolute left-2.5 top-2.5 text-xs text-slate-400 currencyPrefix">$</span>
+                <input type="number" id="shippingValue" step="0.01" min="0" value="45.00" class="w-full pl-6 pr-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono">
               </div>
             </div>
-          </div>
-
-          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center text-xs">
-            <span class="text-slate-600 font-medium">Base Aduaneira (Produtos + Frete + Seguro):</span>
-            <span id="cifDisplay" class="font-bold text-slate-900 font-mono text-sm">US$ 130,00</span>
-          </div>
-        </div>
-
-        <!-- Bloco 3: Despesas Operacionais e Câmbio -->
-        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-            <span>✈️</span> Modalidade & Despesas Operacionais
-          </h2>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label for="shippingCarrier" class="block text-xs font-medium text-slate-600 mb-1">Transportadora / Desembaraço</label>
-              <select id="shippingCarrier" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-                <option value="correios">Correios (Despacho Postal)</option>
-                <option value="courier">Courier Express (DHL, FedEx, UPS)</option>
-                <option value="none">Isento / Sem taxa administrativa</option>
-              </select>
-            </div>
-            <div>
-              <label for="clearanceFee" class="block text-xs font-medium text-slate-600 mb-1">Taxa de Desembaraço / Manuseio (R$)</label>
+              <label for="insuranceValue" class="block text-xs font-medium text-slate-600 mb-1">Seguro (<span class="currencyLabel">USD</span>)</label>
               <div class="relative">
-                <span class="absolute left-3 top-2.5 text-xs text-slate-400">R$</span>
-                <input type="number" id="clearanceFee" step="0.01" min="0" value="16.60" class="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <span class="absolute left-2.5 top-2.5 text-xs text-slate-400 currencyPrefix">$</span>
+                <input type="number" id="insuranceValue" step="0.01" min="0" value="0.00" class="w-full pl-6 pr-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono">
               </div>
             </div>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
             <div>
-              <label for="iofPreset" class="block text-xs font-medium text-slate-600 mb-1">Tipo de Pagamento (IOF)</label>
+              <label for="shippingCarrier" class="block text-xs font-medium text-slate-600 mb-1">Transportadora / Despacho</label>
+              <select id="shippingCarrier" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="correios">Correios (Despacho Postal R$ 16,60)</option>
+                <option value="courier">Courier (DHL, FedEx, UPS - R$ 95,00)</option>
+                <option value="none">Isento / Sem taxa</option>
+              </select>
+            </div>
+            <div>
+              <label for="clearanceFee" class="block text-xs font-medium text-slate-600 mb-1">Taxa de Desembaraço (R$)</label>
+              <div class="relative">
+                <span class="absolute left-3 top-2.5 text-xs text-slate-400">R$</span>
+                <input type="number" id="clearanceFee" step="0.01" min="0" value="16.60" class="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono">
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="iofPreset" class="block text-xs font-medium text-slate-600 mb-1">IOF do Câmbio</label>
               <select id="iofPreset" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none">
-                <option value="1.1">Câmbio / Conta Global / Comercial (1,10%)</option>
+                <option value="1.1">Câmbio Comercial / Conta Global (1,1%)</option>
                 <option value="4.38">Cartão de Crédito Internacional (4,38%)</option>
-                <option value="custom">Outra alíquota</option>
+                <option value="custom">Outro percentual</option>
               </select>
             </div>
             <div>
               <label for="iofRate" class="block text-xs font-medium text-slate-600 mb-1">Alíquota IOF (%)</label>
               <div class="relative">
-                <input type="number" id="iofRate" step="0.01" min="0" value="1.10" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="number" id="iofRate" step="0.01" min="0" value="1.10" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono">
                 <span class="absolute right-3 top-2.5 text-xs text-slate-400">%</span>
               </div>
             </div>
           </div>
         </div>
-      </section>
 
-      <!-- Painel de Resultados -->
-      <section class="lg:col-span-6 space-y-6">
-        
-        <!-- Cartão Principal de Custo Total -->
-        <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl shadow-lg p-6 border border-slate-800">
+        <!-- ETAPA 2: CONFIGURAÇÃO DE VENDA NO MERCADO LIVRE -->
+        <div class="bg-white rounded-xl shadow-sm border border-yellow-300 ring-1 ring-yellow-400/40 p-5 space-y-4">
+          <div class="border-b border-slate-100 pb-3">
+            <h2 class="text-sm font-bold text-slate-900 flex items-center gap-2 uppercase tracking-wide">
+              <span class="flex items-center justify-center w-6 h-6 rounded-full bg-yellow-400 text-slate-900 text-xs font-bold">2</span>
+              Precificação & Mercado Livre
+            </h2>
+            <p class="text-xs text-slate-500 mt-1">Configure sua margem desejada e as taxas de venda.</p>
+          </div>
+
+          <!-- Tipo e Margem Desejada -->
+          <div class="bg-amber-50/60 border border-amber-200/80 rounded-xl p-4 space-y-3">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <label class="text-xs font-bold text-amber-950 uppercase tracking-wide">Margem de Contribuição Desejada</label>
+              <div class="inline-flex rounded-lg bg-white border border-amber-200 p-0.5 text-xs">
+                <button type="button" id="btnMarginPercent" class="px-3 py-1 rounded-md font-semibold bg-amber-500 text-white shadow-sm transition-all">% Sobre a Venda</button>
+                <button type="button" id="btnMarginFixed" class="px-3 py-1 rounded-md font-medium text-slate-600 hover:text-slate-900 transition-all">R$ Fixo por Peça</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+              <div>
+                <span class="text-xs text-slate-600 block mb-1" id="marginInputLabel">Margem pretendida (% sobre o Preço)</span>
+                <div class="relative">
+                  <input type="number" id="targetMarginValue" step="0.1" min="0" value="25.0" class="w-full pl-3 pr-8 py-2 text-base font-bold text-slate-900 border border-amber-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none font-mono bg-white">
+                  <span id="marginInputSymbol" class="absolute right-3 top-2.5 text-sm font-bold text-slate-400">%</span>
+                </div>
+              </div>
+              <div class="text-xs text-slate-600 bg-white/80 p-2.5 rounded-lg border border-amber-100">
+                Esta é a sobra líquida unitária que vai para o caixa após pagar o custo do produto importado, todas as taxas do Mercado Livre e os impostos de saída.
+              </div>
+            </div>
+          </div>
+
+          <!-- Taxas do Mercado Livre e Imposto de Saída -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="mlCommissionRate" class="block text-xs font-medium text-slate-600 mb-1">Tarifa de Venda ML (%)</label>
+              <div class="relative">
+                <input type="number" id="mlCommissionRate" step="0.1" min="0" value="16.0" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none font-mono">
+                <span class="absolute right-3 top-2.5 text-xs text-slate-400">%</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">Ex: 12% a 19% (Clássico ou Premium)</p>
+            </div>
+
+            <div>
+              <label for="mlFixedFee" class="block text-xs font-medium text-slate-600 mb-1">Custo Fixo por Venda (R$)</label>
+              <div class="relative">
+                <span class="absolute left-3 top-2.5 text-xs text-slate-400">R$</span>
+                <input type="number" id="mlFixedFee" step="0.01" min="0" value="6.00" class="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none font-mono">
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">Tarifa fixa padrão cobrada por unidade</p>
+            </div>
+          </div>
+
+          <div>
+            <label for="taxRateDAS" class="block text-xs font-medium text-slate-600 mb-1">Imposto sobre a Venda (Simples Nacional / DAS %)</label>
+            <div class="relative">
+              <input type="number" id="taxRateDAS" step="0.01" min="0" value="4.00" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none font-mono">
+              <span class="absolute right-3 top-2.5 text-xs text-slate-400">%</span>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-0.5">Alíquota da sua NF-e de saída (coloque 0 se for MEI sem DAS proporcional)</p>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ================= COLUNA 2: RESULTADOS & VIABILIDADE ================= -->
+      <div class="lg:col-span-6 space-y-6">
+
+        <!-- CARD DESTAQUE: PREÇO SUGERIDO NO MERCADO LIVRE -->
+        <div class="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 text-white rounded-2xl shadow-xl p-6 border border-slate-800 relative overflow-hidden">
           <div class="flex justify-between items-start">
             <div>
-              <p class="text-xs uppercase tracking-wider text-slate-400 font-medium">Custo Total Desembarcado (Landed Cost)</p>
-              <div class="text-3xl sm:text-4xl font-extrabold tracking-tight mt-1 text-white font-mono" id="totalCostBRL">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-yellow-400/20 text-yellow-300 border border-yellow-400/30 uppercase tracking-wide">
+                <span>🏷️</span> Preço de Venda Recomendado (ML)
+              </span>
+              <div class="text-4xl sm:text-5xl font-extrabold tracking-tight mt-3 text-white font-mono" id="suggestedPrice">
                 R$ 0,00
               </div>
             </div>
-            <div class="text-right">
-              <span class="inline-block px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                ICMS SP 18%
-              </span>
-            </div>
           </div>
 
-          <div class="mt-6 pt-5 border-t border-slate-700/60 grid grid-cols-2 gap-4 text-left">
+          <div class="mt-6 pt-5 border-t border-slate-700/80 grid grid-cols-2 sm:grid-cols-3 gap-4 text-left">
             <div>
-              <p class="text-xs text-slate-400">Custo por Unidade</p>
-              <p class="text-lg font-bold font-mono text-emerald-400" id="unitCostBRL">R$ 0,00</p>
+              <p class="text-xs text-slate-400">Custo Desembarcado / Peça</p>
+              <p class="text-base font-bold font-mono text-blue-400" id="unitLandedCostDisplay">R$ 0,00</p>
             </div>
             <div>
-              <p class="text-xs text-slate-400">Carga Tributária Efetiva</p>
-              <p class="text-lg font-bold font-mono text-amber-400" id="effectiveTaxRate">95,12%</p>
+              <p class="text-xs text-slate-400">Lucro Líquido / Peça</p>
+              <p class="text-base font-bold font-mono text-emerald-400" id="unitProfitDisplay">R$ 0,00</p>
+            </div>
+            <div class="col-span-2 sm:col-span-1">
+              <p class="text-xs text-slate-400">Lucro Total no Lote</p>
+              <p class="text-base font-bold font-mono text-yellow-400" id="batchProfitDisplay">R$ 0,00</p>
             </div>
           </div>
         </div>
 
-        <!-- Detalhamento dos Tributos e Custos -->
+        <!-- DRE UNITÁRIO DA VENDA (RAIO-X DO PREÇO) -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div class="p-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 class="text-sm font-semibold text-slate-700">Detalhamento dos Custos</h3>
-            <span class="text-xs text-slate-400">Valores em Reais (BRL)</span>
+          <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+              <span>📊</span> Raio-X Unitário da Venda (DRE)
+            </h3>
+            <span class="text-xs text-slate-500 font-medium">Por unidade vendida</span>
           </div>
 
-          <div class="p-5 space-y-3 text-sm">
-            <div class="flex justify-between items-center py-1 border-b border-slate-100">
-              <span class="text-slate-600 flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Valor Aduaneiro CIF (Produtos + Frete + Seg.)
-              </span>
-              <span class="font-mono font-medium text-slate-900" id="rowCifBRL">R$ 0,00</span>
+          <div class="p-5 space-y-2.5 text-xs sm:text-sm">
+            <div class="flex justify-between items-center py-1 border-b border-slate-100 font-semibold text-slate-900">
+              <span>(=) Preço de Venda Bruto no Anúncio</span>
+              <span class="font-mono text-slate-900" id="drePrice">R$ 0,00</span>
             </div>
 
-            <div class="flex justify-between items-center py-1 border-b border-slate-100">
-              <span class="text-slate-600 flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Imposto de Importação (II 60%)
+            <div class="flex justify-between items-center py-1 border-b border-slate-100 text-slate-600">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> (-) Custo da Peça Importada (CPV)
               </span>
-              <span class="font-mono font-medium text-rose-600" id="rowIiBRL">R$ 0,00</span>
+              <span class="font-mono font-medium text-slate-800" id="dreProductCost">- R$ 0,00</span>
             </div>
 
-            <div class="flex justify-between items-center py-1 border-b border-slate-100">
-              <div>
-                <span class="text-slate-600 flex items-center gap-1.5">
-                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> ICMS SP (18% "por dentro")
-                </span>
-                <p class="text-[11px] text-slate-400 ml-4">Base de cálculo: <span id="rowIcmsBase" class="font-mono">R$ 0,00</span></p>
+            <div class="flex justify-between items-center py-1 border-b border-slate-100 text-slate-600">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> (-) Comissão ML (<span id="dreMlCommissionRate">16%</span>)
+              </span>
+              <span class="font-mono font-medium text-slate-800" id="dreMlCommissionValue">- R$ 0,00</span>
+            </div>
+
+            <div class="flex justify-between items-center py-1 border-b border-slate-100 text-slate-600">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span> (-) Taxa Fixa ML
+              </span>
+              <span class="font-mono font-medium text-slate-800" id="dreMlFixedFee">- R$ 0,00</span>
+            </div>
+
+            <div class="flex justify-between items-center py-1 border-b border-slate-100 text-slate-600">
+              <span class="flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> (-) Imposto Saída DAS (<span id="dreTaxRateDAS">4%</span>)
+              </span>
+              <span class="font-mono font-medium text-slate-800" id="dreTaxValue">- R$ 0,00</span>
+            </div>
+
+            <div class="flex justify-between items-center pt-2 text-sm sm:text-base font-bold bg-emerald-50/70 p-3 rounded-lg border border-emerald-200 text-emerald-900">
+              <span>(=) Margem de Contribuição Líquida</span>
+              <div class="text-right">
+                <span class="font-mono text-emerald-700" id="dreNetProfit">R$ 0,00</span>
+                <span class="block text-[11px] font-normal text-emerald-600" id="dreNetMarginPercent">(0,0%)</span>
               </div>
-              <span class="font-mono font-medium text-amber-600" id="rowIcmsBRL">R$ 0,00</span>
-            </div>
-
-            <div class="flex justify-between items-center py-1 border-b border-slate-100">
-              <span class="text-slate-600 flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> IOF Câmbio
-              </span>
-              <span class="font-mono font-medium text-purple-600" id="rowIofBRL">R$ 0,00</span>
-            </div>
-
-            <div class="flex justify-between items-center py-1 border-b border-slate-100">
-              <span class="text-slate-600 flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Taxas Operacionais (Courier / Correios)
-              </span>
-              <span class="font-mono font-medium text-slate-900" id="rowClearanceBRL">R$ 0,00</span>
-            </div>
-
-            <div class="flex justify-between items-center pt-2 font-semibold text-slate-900 text-base">
-              <span>Total de Impostos (II + ICMS)</span>
-              <span class="font-mono text-rose-700" id="rowTotalTaxes">R$ 0,00</span>
             </div>
           </div>
         </div>
 
-        <!-- Gráfico e Resumo Visual -->
+        <!-- RESUMO DO DESEMBARAÇO ADUANEIRO (IMPORTAÇÃO SP) -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center justify-between">
+            <span>🛃 Detalhamento da Importação (Lote Completo)</span>
+            <span class="text-[11px] font-mono text-blue-600" id="batchSizeDisplay">10 peças</span>
+          </h3>
+
+          <div class="grid grid-cols-2 gap-3 text-xs pt-2">
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+              <span class="text-slate-500 block">Base Aduaneira (CIF Total):</span>
+              <span class="font-mono font-bold text-slate-800" id="summaryCifTotal">R$ 0,00</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+              <span class="text-slate-500 block">Imposto de Importação (60%):</span>
+              <span class="font-mono font-bold text-rose-600" id="summaryIiTotal">R$ 0,00</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+              <span class="text-slate-500 block">ICMS SP (18% "por dentro"):</span>
+              <span class="font-mono font-bold text-amber-600" id="summaryIcmsTotal">R$ 0,00</span>
+            </div>
+            <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+              <span class="text-slate-500 block">Custo Total de Importação:</span>
+              <span class="font-mono font-bold text-slate-900" id="summaryTotalImportCost">R$ 0,00</span>
+            </div>
+          </div>
+
+          <div class="text-[11px] text-slate-500 flex justify-between items-center pt-1 border-t border-slate-100">
+            <span>Carga tributária efetiva em SP:</span>
+            <span class="font-mono font-semibold text-slate-700" id="summaryEffectiveTaxRate">95,12%</span>
+          </div>
+        </div>
+
+        <!-- GRÁFICO DE DISTRIBUIÇÃO DA RECEITA BRUTA -->
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
-          <h3 class="text-sm font-semibold text-slate-700 mb-4">Composição Percentual do Custo</h3>
-          <div class="relative h-56 flex items-center justify-center">
-            <canvas id="costChart"></canvas>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 mb-3">Distribuição do Preço de Venda</h3>
+          <div class="relative h-48 flex items-center justify-center">
+            <canvas id="revenueChart"></canvas>
           </div>
         </div>
 
-        <!-- Botões de Ação -->
+        <!-- AÇÕES -->
         <div class="flex flex-col sm:flex-row gap-3">
-          <button type="button" id="btnCopySummary" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-medium py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2 transition-all shadow-sm">
-            <span>📋</span> Copiar Resumo da Simulação
+          <button type="button" id="btnCopyDossier" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-medium py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2 transition-all shadow-sm">
+            <span>📋</span> Copiar Estudo de Viabilidade
           </button>
           <button type="button" onclick="window.print()" class="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-medium py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2 transition-all">
             <span>🖨️</span> Imprimir
           </button>
         </div>
-      </section>
+
+      </div>
 
     </div>
 
-    <!-- Seção Informativa e Fórmulas Legais -->
-    <section class="mt-12 bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-      <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
-        <span>📖</span> Como é feito o cálculo em São Paulo?
+    <!-- NOTAS TÉCNICAS E FÓRMULAS -->
+    <section class="bg-white rounded-xl border border-slate-200 p-6 space-y-4 text-xs text-slate-600">
+      <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+        <span>⚙️</span> Fórmulas Utilizadas no Cálculo
       </h3>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-600 leading-relaxed">
-        <div class="border-l-2 border-blue-500 pl-3">
-          <h4 class="font-semibold text-slate-800 text-sm mb-1">1. Base Aduaneira (CIF)</h4>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 leading-relaxed">
+        <div>
+          <h4 class="font-bold text-slate-700 mb-1">1. Custo Desembarcado em São Paulo (Landed Cost)</h4>
           <p>
-            A soma do valor do produto + frete internacional + seguro. No regime simplificado (RTS), o teto máximo permitido pela Receita Federal é de <strong>US$ 3.000,00</strong> por remessa.
+            $\text{CIF} = \text{Produtos} + \text{Frete} + \text{Seguro}$<br>
+            $\text{II} = \text{CIF} \times 60\%$<br>
+            $\text{ICMS SP} = \frac{\text{CIF} + \text{II}}{1 - 0{,}18} \times 18\%$<br>
+            $\text{Custo Unitário} = \frac{\text{CIF} + \text{II} + \text{ICMS} + \text{IOF} + \text{Desembaraço}}{\text{Quantidade}}$
           </p>
         </div>
-        <div class="border-l-2 border-rose-500 pl-3">
-          <h4 class="font-semibold text-slate-800 text-sm mb-1">2. Imposto de Importação (II)</h4>
+        <div>
+          <h4 class="font-bold text-slate-700 mb-1">2. Formação do Preço de Venda no Mercado Livre</h4>
           <p>
-            Alíquota federal padrão de <strong>60%</strong> aplicada diretamente sobre o valor aduaneiro total.
+            O preço é calculado por dentro, aplicando a comissão percentual, o imposto de saída (DAS) e a margem percentual, além de somar o custo unitário e a taxa fixa:
           </p>
-        </div>
-        <div class="border-l-2 border-amber-500 pl-3">
-          <h4 class="font-semibold text-slate-800 text-sm mb-1">3. ICMS São Paulo ("Por Dentro")</h4>
-          <p>
-            Em SP, a alíquota padrão é de <strong>18%</strong>. A legislação exige o cálculo "por dentro", onde a base do ICMS é dividida por $(1 - 0{,}18) = 0{,}82$. Isso resulta em uma carga tributária conjunta de aproximadamente <strong>95,12%</strong> sobre o valor CIF.
+          <p class="font-mono text-[11px] bg-slate-50 p-2 rounded border border-slate-200 mt-1">
+            Preço = (Custo Unitário + Taxa Fixa ML + Margem R$) / [1 - (Comissão ML% + DAS% + Margem %)]
           </p>
         </div>
       </div>
     </section>
+
   </main>
 
-  <!-- Rodapé -->
-  <footer class="max-w-6xl mx-auto px-4 py-8 text-center text-xs text-slate-400">
-    Calculadora desenvolvida para simulação aduaneira simplificada (RTS - Decreto-Lei nº 1.804/1980 e Portaria MF).
+  <footer class="max-w-7xl mx-auto px-4 py-8 text-center text-xs text-slate-400">
+    Calculadora e Precificador Integrado para Mercado Livre & Regime Simplificado (SP).
   </footer>
 
-  <!-- Lógica JavaScript -->
+  <!-- SCRIPT JS -->
   <script>
-    // Estado do App
     const state = {
       currency: 'USD',
-      exchangeRate: 5.50,
-      productValue: 100.0,
-      shippingValue: 30.0,
-      insuranceValue: 0.0,
-      quantity: 1,
-      carrier: 'correios',
-      clearanceFee: 16.60,
-      iofRate: 1.10,
-      icmsRate: 0.18 // 18% SP
+      marginType: 'percent', // 'percent' ou 'fixed'
+      icmsRateSP: 0.18
     };
 
     let chartInstance = null;
@@ -336,11 +410,11 @@
     // Elementos DOM
     const elExchangeRate = document.getElementById('exchangeRate');
     const elHeaderExchangeRate = document.getElementById('headerExchangeRate');
+    const elProductQuantity = document.getElementById('productQuantity');
     const elProductValue = document.getElementById('productValue');
     const elShippingValue = document.getElementById('shippingValue');
     const elInsuranceValue = document.getElementById('insuranceValue');
-    const elQuantity = document.getElementById('productQuantity');
-    const elCarrier = document.getElementById('shippingCarrier');
+    const elShippingCarrier = document.getElementById('shippingCarrier');
     const elClearanceFee = document.getElementById('clearanceFee');
     const elIofPreset = document.getElementById('iofPreset');
     const elIofRate = document.getElementById('iofRate');
@@ -349,22 +423,26 @@
     const elBtnFetchRate = document.getElementById('btnFetchRate');
     const elRtsWarning = document.getElementById('rtsWarning');
 
+    // Mercado Livre e Margem
+    const elBtnMarginPercent = document.getElementById('btnMarginPercent');
+    const elBtnMarginFixed = document.getElementById('btnMarginFixed');
+    const elTargetMarginValue = document.getElementById('targetMarginValue');
+    const elMarginInputLabel = document.getElementById('marginInputLabel');
+    const elMarginInputSymbol = document.getElementById('marginInputSymbol');
+    const elMlCommissionRate = document.getElementById('mlCommissionRate');
+    const elMlFixedFee = document.getElementById('mlFixedFee');
+    const elTaxRateDAS = document.getElementById('taxRateDAS');
+
     // Inicialização do Gráfico
     function initChart() {
-      const ctx = document.getElementById('costChart').getContext('2d');
+      const ctx = document.getElementById('revenueChart').getContext('2d');
       chartInstance = new Chart(ctx, {
         type: 'doughnut',
         data: {
-          labels: ['Custo CIF', 'Imposto Imp. (60%)', 'ICMS SP (18%)', 'IOF', 'Taxa Operacional'],
+          labels: ['Custo do Produto', 'Comissão ML', 'Taxa Fixa ML', 'Imposto DAS', 'Margem Líquida'],
           datasets: [{
             data: [0, 0, 0, 0, 0],
-            backgroundColor: [
-              '#3b82f6', // blue-500
-              '#f43f5e', // rose-500
-              '#f59e0b', // amber-500
-              '#a855f7', // purple-500
-              '#10b981'  // emerald-500
-            ],
+            backgroundColor: ['#3b82f6', '#f59e0b', '#f97316', '#a855f7', '#10b981'],
             borderWidth: 2,
             borderColor: '#ffffff'
           }]
@@ -376,16 +454,16 @@
             legend: {
               position: 'bottom',
               labels: {
-                boxWidth: 12,
-                padding: 12,
+                boxWidth: 10,
+                padding: 10,
                 font: { size: 11, family: 'Inter' }
               }
             },
             tooltip: {
               callbacks: {
-                label: function(context) {
-                  const val = context.raw || 0;
-                  return ` ${context.label}: R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                label: function(ctx) {
+                  const val = ctx.raw || 0;
+                  return ` ${ctx.label}: R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                 }
               }
             }
@@ -395,7 +473,6 @@
       });
     }
 
-    // Formatação monetária
     function formatBRL(val) {
       return 'R$ ' + Number(val || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
@@ -404,88 +481,124 @@
       return 'US$ ' + Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    // Cálculo Principal
-    function calculate() {
+    // Cálculo Central Integrado
+    function calculateAll() {
       const rate = parseFloat(elExchangeRate.value) || 1;
-      const prod = parseFloat(elProductValue.value) || 0;
-      const ship = parseFloat(elShippingValue.value) || 0;
-      const ins = parseFloat(elInsuranceValue.value) || 0;
-      const qty = Math.max(1, parseInt(elQuantity.value) || 1);
+      const qty = Math.max(1, parseInt(elProductQuantity.value) || 1);
+      const prodVal = parseFloat(elProductValue.value) || 0;
+      const shipVal = parseFloat(elShippingValue.value) || 0;
+      const insVal = parseFloat(elInsuranceValue.value) || 0;
       const fee = parseFloat(elClearanceFee.value) || 0;
-      const iofPercent = (parseFloat(elIofRate.value) || 0) / 100;
+      const iofRate = (parseFloat(elIofRate.value) || 0) / 100;
 
-      // Cálculo do CIF na moeda original
-      const cifInputCurrency = prod + ship + ins;
-
-      // Conversões para USD (para checar limite de $3.000) e para BRL
+      // 1. CÁLCULO ADUANEIRO
+      const cifInput = prodVal + shipVal + insVal;
       let cifUSD = 0;
       let cifBRL = 0;
 
       if (state.currency === 'USD') {
-        cifUSD = cifInputCurrency;
-        cifBRL = cifInputCurrency * rate;
+        cifUSD = cifInput;
+        cifBRL = cifInput * rate;
       } else {
-        cifUSD = cifInputCurrency / (rate > 0 ? rate : 1);
-        cifBRL = cifInputCurrency;
+        cifUSD = cifInput / (rate > 0 ? rate : 1);
+        cifBRL = cifInput;
       }
 
-      // Verificação do limite RTS (US$ 3.000)
+      // Verificação limite US$ 3.000
       if (cifUSD > 3000.01) {
         elRtsWarning.classList.remove('hidden');
       } else {
         elRtsWarning.classList.add('hidden');
       }
 
-      // Exibição CIF
-      document.getElementById('cifDisplay').innerText = state.currency === 'USD' 
-        ? `${formatUSD(cifUSD)} (${formatBRL(cifBRL)})` 
-        : `${formatBRL(cifBRL)} (${formatUSD(cifUSD)})`;
-
-      // 1. Imposto de Importação (60%)
+      // Tributação de Importação
       const iiBRL = cifBRL * 0.60;
-
-      // 2. Base de Cálculo do ICMS SP (18% por dentro)
-      // Base ICMS = (CIF + II) / (1 - 0.18)
-      const icmsBaseBRL = (cifBRL + iiBRL) / (1 - state.icmsRate);
-      const icmsBRL = icmsBaseBRL * state.icmsRate;
-
-      // 3. IOF
-      const iofBRL = cifBRL * iofPercent;
-
-      // 4. Taxas Operacionais
+      const icmsBaseBRL = (cifBRL + iiBRL) / (1 - state.icmsRateSP);
+      const icmsBRL = icmsBaseBRL * state.icmsRateSP;
+      const iofBRL = cifBRL * iofRate;
       const clearanceBRL = fee;
 
-      // Totais
-      const totalTaxesBRL = iiBRL + icmsBRL;
-      const totalCostBRL = cifBRL + totalTaxesBRL + iofBRL + clearanceBRL;
-      const unitCostBRL = totalCostBRL / qty;
+      const totalImportCostBRL = cifBRL + iiBRL + icmsBRL + iofBRL + clearanceBRL;
+      const unitLandedCostBRL = totalImportCostBRL / qty;
 
-      // Carga tributária efetiva sobre o valor aduaneiro
-      const effectiveRate = cifBRL > 0 ? ((totalTaxesBRL / cifBRL) * 100).toFixed(2) : '0.00';
+      // 2. PRECIFICAÇÃO NO MERCADO LIVRE
+      const mlCommRate = (parseFloat(elMlCommissionRate.value) || 0) / 100;
+      const mlFixedFee = Math.max(0, parseFloat(elMlFixedFee.value) || 0);
+      const dasRate = (parseFloat(elTaxRateDAS.value) || 0) / 100;
+      const marginInput = parseFloat(elTargetMarginValue.value) || 0;
 
-      // Atualização da UI
-      document.getElementById('totalCostBRL').innerText = formatBRL(totalCostBRL);
-      document.getElementById('unitCostBRL').innerText = formatBRL(unitCostBRL);
-      document.getElementById('effectiveTaxRate').innerText = effectiveRate + '%';
+      let targetMarginPercent = 0;
+      let targetMarginFixed = 0;
 
-      document.getElementById('rowCifBRL').innerText = formatBRL(cifBRL);
-      document.getElementById('rowIiBRL').innerText = formatBRL(iiBRL);
-      document.getElementById('rowIcmsBRL').innerText = formatBRL(icmsBRL);
-      document.getElementById('rowIcmsBase').innerText = formatBRL(icmsBaseBRL);
-      document.getElementById('rowIofBRL').innerText = formatBRL(iofBRL);
-      document.getElementById('rowClearanceBRL').innerText = formatBRL(clearanceBRL);
-      document.getElementById('rowTotalTaxes').innerText = formatBRL(totalTaxesBRL);
+      if (state.marginType === 'percent') {
+        targetMarginPercent = marginInput / 100;
+      } else {
+        targetMarginFixed = marginInput;
+      }
 
+      // Soma das alíquotas incidentes sobre a venda bruta
+      const sumPercentDeductions = mlCommRate + dasRate + targetMarginPercent;
+
+      let finalSalePrice = 0;
+      let unitNetProfit = 0;
+
+      if (sumPercentDeductions >= 1) {
+        // Previne divisão por zero ou negativa
+        finalSalePrice = (unitLandedCostBRL + mlFixedFee + targetMarginFixed) * 2;
+      } else {
+        // Preço = (Custo Unitário + Taxa Fixa + Margem Fixa) / [1 - (Comissão% + DAS% + Margem%)]
+        finalSalePrice = (unitLandedCostBRL + mlFixedFee + targetMarginFixed) / (1 - sumPercentDeductions);
+      }
+
+      // Valores unitários de saída
+      const mlCommValue = finalSalePrice * mlCommRate;
+      const dasValue = finalSalePrice * dasRate;
+
+      if (state.marginType === 'percent') {
+        unitNetProfit = finalSalePrice * targetMarginPercent;
+      } else {
+        unitNetProfit = targetMarginFixed;
+      }
+
+      const netMarginPercent = finalSalePrice > 0 ? (unitNetProfit / finalSalePrice) * 100 : 0;
+      const batchNetProfit = unitNetProfit * qty;
+
+      // ATUALIZAÇÃO DA INTERFACE (UI)
       elHeaderExchangeRate.innerText = formatBRL(rate);
 
-      // Atualiza Gráfico
+      document.getElementById('suggestedPrice').innerText = formatBRL(finalSalePrice);
+      document.getElementById('unitLandedCostDisplay').innerText = formatBRL(unitLandedCostBRL);
+      document.getElementById('unitProfitDisplay').innerText = formatBRL(unitNetProfit);
+      document.getElementById('batchProfitDisplay').innerText = formatBRL(batchNetProfit);
+
+      // Atualiza DRE
+      document.getElementById('drePrice').innerText = formatBRL(finalSalePrice);
+      document.getElementById('dreProductCost').innerText = `- ${formatBRL(unitLandedCostBRL)}`;
+      document.getElementById('dreMlCommissionRate').innerText = `${(mlCommRate * 100).toFixed(1)}%`;
+      document.getElementById('dreMlCommissionValue').innerText = `- ${formatBRL(mlCommValue)}`;
+      document.getElementById('dreMlFixedFee').innerText = `- ${formatBRL(mlFixedFee)}`;
+      document.getElementById('dreTaxRateDAS').innerText = `${(dasRate * 100).toFixed(1)}%`;
+      document.getElementById('dreTaxValue').innerText = `- ${formatBRL(dasValue)}`;
+      document.getElementById('dreNetProfit').innerText = formatBRL(unitNetProfit);
+      document.getElementById('dreNetMarginPercent').innerText = `(${netMarginPercent.toFixed(1)}% do faturamento)`;
+
+      // Atualiza Resumo de Importação
+      document.getElementById('batchSizeDisplay').innerText = `${qty} unidades`;
+      document.getElementById('summaryCifTotal').innerText = formatBRL(cifBRL);
+      document.getElementById('summaryIiTotal').innerText = formatBRL(iiBRL);
+      document.getElementById('summaryIcmsTotal').innerText = formatBRL(icmsBRL);
+      document.getElementById('summaryTotalImportCost').innerText = formatBRL(totalImportCostBRL);
+      const effectiveRate = cifBRL > 0 ? (((iiBRL + icmsBRL) / cifBRL) * 100).toFixed(2) : '0.00';
+      document.getElementById('summaryEffectiveTaxRate').innerText = `${effectiveRate}%`;
+
+      // Atualiza Gráfico de Composição
       if (chartInstance) {
         chartInstance.data.datasets[0].data = [
-          parseFloat(cifBRL.toFixed(2)),
-          parseFloat(iiBRL.toFixed(2)),
-          parseFloat(icmsBRL.toFixed(2)),
-          parseFloat(iofBRL.toFixed(2)),
-          parseFloat(clearanceBRL.toFixed(2))
+          parseFloat(unitLandedCostBRL.toFixed(2)),
+          parseFloat(mlCommValue.toFixed(2)),
+          parseFloat(mlFixedFee.toFixed(2)),
+          parseFloat(dasValue.toFixed(2)),
+          parseFloat(unitNetProfit.toFixed(2))
         ];
         chartInstance.update();
       }
@@ -497,20 +610,41 @@
       state.currency = curr;
 
       if (curr === 'USD') {
-        elBtnUSD.className = "py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-sm transition-all";
-        elBtnBRL.className = "py-1.5 text-xs font-semibold rounded-md text-slate-500 hover:text-slate-800 transition-all";
+        elBtnUSD.className = "px-2.5 py-1 font-semibold rounded-md bg-white text-slate-800 shadow-sm transition-all";
+        elBtnBRL.className = "px-2.5 py-1 font-semibold rounded-md text-slate-500 hover:text-slate-800 transition-all";
         document.querySelectorAll('.currencyLabel').forEach(el => el.innerText = 'USD');
         document.querySelectorAll('.currencyPrefix').forEach(el => el.innerText = '$');
       } else {
-        elBtnBRL.className = "py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-sm transition-all";
-        elBtnUSD.className = "py-1.5 text-xs font-semibold rounded-md text-slate-500 hover:text-slate-800 transition-all";
+        elBtnBRL.className = "px-2.5 py-1 font-semibold rounded-md bg-white text-slate-800 shadow-sm transition-all";
+        elBtnUSD.className = "px-2.5 py-1 font-semibold rounded-md text-slate-500 hover:text-slate-800 transition-all";
         document.querySelectorAll('.currencyLabel').forEach(el => el.innerText = 'BRL');
         document.querySelectorAll('.currencyPrefix').forEach(el => el.innerText = 'R$');
       }
-      calculate();
+      calculateAll();
     }
 
-    // Buscar Cotação em Tempo Real (AwesomeAPI)
+    // Alternar Tipo de Margem
+    function setMarginType(type) {
+      if (state.marginType === type) return;
+      state.marginType = type;
+
+      if (type === 'percent') {
+        elBtnMarginPercent.className = "px-3 py-1 rounded-md font-semibold bg-amber-500 text-white shadow-sm transition-all";
+        elBtnMarginFixed.className = "px-3 py-1 rounded-md font-medium text-slate-600 hover:text-slate-900 transition-all";
+        elMarginInputLabel.innerText = "Margem pretendida (% sobre o Preço)";
+        elMarginInputSymbol.innerText = "%";
+        elTargetMarginValue.value = "25.0";
+      } else {
+        elBtnMarginFixed.className = "px-3 py-1 rounded-md font-semibold bg-amber-500 text-white shadow-sm transition-all";
+        elBtnMarginPercent.className = "px-3 py-1 rounded-md font-medium text-slate-600 hover:text-slate-900 transition-all";
+        elMarginInputLabel.innerText = "Lucro líquido pretendido (R$ por peça)";
+        elMarginInputSymbol.innerText = "R$";
+        elTargetMarginValue.value = "30.00";
+      }
+      calculateAll();
+    }
+
+    // Buscar Cotação em Tempo Real
     async function fetchExchangeRate() {
       elBtnFetchRate.innerText = 'Buscando...';
       try {
@@ -519,47 +653,52 @@
         if (data && data.USDBRL && data.USDBRL.bid) {
           const bid = parseFloat(data.USDBRL.bid);
           elExchangeRate.value = bid.toFixed(3);
-          calculate();
+          calculateAll();
           elBtnFetchRate.innerText = 'Atualizado!';
         } else {
-          elBtnFetchRate.innerText = 'Indisponível';
+          elBtnFetchRate.innerText = 'Falhou';
         }
       } catch (err) {
-        console.warn('Erro ao buscar cotação:', err);
-        elBtnFetchRate.innerText = 'Erro ao buscar';
+        console.warn('Erro ao consultar API de câmbio:', err);
+        elBtnFetchRate.innerText = 'Erro';
       }
       setTimeout(() => {
-        elBtnFetchRate.innerText = 'Buscar agora';
+        elBtnFetchRate.innerText = 'Buscar cotação';
       }, 3000);
     }
 
-    // Copiar Resumo
-    function copySummary() {
-      const total = document.getElementById('totalCostBRL').innerText;
-      const unit = document.getElementById('unitCostBRL').innerText;
-      const cif = document.getElementById('rowCifBRL').innerText;
-      const ii = document.getElementById('rowIiBRL').innerText;
-      const icms = document.getElementById('rowIcmsBRL').innerText;
-      const taxa = document.getElementById('rowClearanceBRL').innerText;
-      const cotacao = elExchangeRate.value;
-      const qtd = elQuantity.value;
+    // Copiar Dossiê de Viabilidade
+    function copyDossier() {
+      const precoVenda = document.getElementById('suggestedPrice').innerText;
+      const custoUnit = document.getElementById('unitLandedCostDisplay').innerText;
+      const lucroUnit = document.getElementById('unitProfitDisplay').innerText;
+      const lucroLote = document.getElementById('batchProfitDisplay').innerText;
+      const qtd = elProductQuantity.value;
+      const comissaoMl = document.getElementById('dreMlCommissionValue').innerText;
+      const taxaFixa = document.getElementById('dreMlFixedFee').innerText;
+      const impostoSaida = document.getElementById('dreTaxValue').innerText;
+      const totalImport = document.getElementById('summaryTotalImportCost').innerText;
 
-      const texto = `📦 Resumo Importação Simplificada (SP)
-Cotação Dólar: R$ ${cotacao}
-Qtd Peças: ${qtd}
-----------------------------------------
-Base CIF (Produtos + Frete): ${cif}
-Imposto de Importação (60%): ${ii}
-ICMS SP (18% por dentro): ${icms}
-Taxa de Desembaraço/Correios: ${taxa}
-----------------------------------------
-Custo Total Desembarcado: ${total}
-Custo Unitário: ${unit} por peça`;
+      const texto = `📊 ESTUDO DE VIABILIDADE: IMPORTAÇÃO SP ➜ MERCADO LIVRE
+--------------------------------------------------
+LOTE E CUSTO ADUANEIRO
+- Quantidade no Lote: ${qtd} unidades
+- Investimento Total na Importação: ${totalImport}
+- Custo Desembarcado por Peça (CPV): ${custoUnit}
+--------------------------------------------------
+PREÇO SUGERIDO NO MERCADO LIVRE: ${precoVenda}
+(-) Custo do Produto: ${custoUnit}
+(-) Comissão Mercado Livre: ${comissaoMl}
+(-) Taxa Fixa ML: ${taxaFixa}
+(-) Imposto Saída (DAS): ${impostoSaida}
+(=) Margem Líquida por Peça: ${lucroUnit}
+--------------------------------------------------
+LUCRO LÍQUIDO TOTAL NO LOTE: ${lucroLote}`;
 
       navigator.clipboard.writeText(texto).then(() => {
-        const btn = document.getElementById('btnCopySummary');
+        const btn = document.getElementById('btnCopyDossier');
         const originalText = btn.innerHTML;
-        btn.innerHTML = '<span>✅</span> Copiado com sucesso!';
+        btn.innerHTML = '<span>✅</span> Estudo copiado com sucesso!';
         btn.classList.replace('bg-slate-900', 'bg-emerald-600');
         setTimeout(() => {
           btn.innerHTML = originalText;
@@ -571,14 +710,20 @@ Custo Unitário: ${unit} por peça`;
     // Event Listeners
     elBtnUSD.addEventListener('click', () => setCurrency('USD'));
     elBtnBRL.addEventListener('click', () => setCurrency('BRL'));
+    elBtnMarginPercent.addEventListener('click', () => setMarginType('percent'));
+    elBtnMarginFixed.addEventListener('click', () => setMarginType('fixed'));
     elBtnFetchRate.addEventListener('click', fetchExchangeRate);
-    document.getElementById('btnCopySummary').addEventListener('click', copySummary);
+    document.getElementById('btnCopyDossier').addEventListener('click', copyDossier);
 
-    [elExchangeRate, elProductValue, elShippingValue, elInsuranceValue, elQuantity, elClearanceFee, elIofRate].forEach(input => {
-      input.addEventListener('input', calculate);
+    [
+      elExchangeRate, elProductQuantity, elProductValue, elShippingValue,
+      elInsuranceValue, elClearanceFee, elIofRate, elTargetMarginValue,
+      elMlCommissionRate, elMlFixedFee, elTaxRateDAS
+    ].forEach(input => {
+      input.addEventListener('input', calculateAll);
     });
 
-    elCarrier.addEventListener('change', (e) => {
+    elShippingCarrier.addEventListener('change', (e) => {
       if (e.target.value === 'correios') {
         elClearanceFee.value = '16.60';
       } else if (e.target.value === 'courier') {
@@ -586,21 +731,21 @@ Custo Unitário: ${unit} por peça`;
       } else {
         elClearanceFee.value = '0.00';
       }
-      calculate();
+      calculateAll();
     });
 
     elIofPreset.addEventListener('change', (e) => {
       if (e.target.value !== 'custom') {
         elIofRate.value = e.target.value;
-        calculate();
+        calculateAll();
       }
     });
 
     // Inicialização ao carregar
     window.addEventListener('DOMContentLoaded', () => {
       initChart();
-      calculate();
-      fetchExchangeRate(); // tenta sincronizar o câmbio atualizado
+      calculateAll();
+      fetchExchangeRate();
     });
   </script>
 </body>
