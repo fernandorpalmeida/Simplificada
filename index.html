@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calculadora de Importação Simplificada (SP)</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <!-- Header -->
+  <header class="bg-slate-900 text-white border-b border-slate-800 py-6 px-4 shadow-sm">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+          <span>📦</span> Calculadora de Importação Simplificada
+        </h1>
+        <p class="text-xs sm:text-sm text-slate-400 mt-1">
+          Regime de Tributação Simplificada (RTS até US$ 3.000) • Alíquotas para o Estado de São Paulo
+        </p>
+      </div>
+      <div class="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-slate-300">Dólar Comercial:</span>
+        <span id="headerExchangeRate" class="font-mono font-semibold text-emerald-400">R$ 5,50</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Container Principal -->
+  <main class="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8">
+    
+    <!-- Alerta Limite RTS -->
+    <div id="rtsWarning" class="hidden mb-6 bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm">
+      <div class="flex items-start">
+        <span class="text-amber-600 text-xl mr-3">⚠️</span>
+        <div>
+          <h3 class="text-sm font-semibold text-amber-800">Atenção: Limite do Regime Simplificado Ultrapassado</h3>
+          <p class="text-xs text-amber-700 mt-0.5">
+            O valor aduaneiro total excede <strong>US$ 3.000,00</strong>. Remessas acima deste limite não são elegíveis ao RTS simplificado e entram no regime de importação formal (via Siscomex / Declaração de Importação comum).
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      
+      <!-- Painel de Entradas (Formulário) -->
+      <section class="lg:col-span-6 space-y-6">
+        
+        <!-- Bloco 1: Moeda e Câmbio -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4 flex items-center gap-2">
+            <span>🌐</span> Moeda & Câmbio
+          </h2>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Moeda dos Valores</label>
+              <div class="grid grid-cols-2 bg-slate-100 p-1 rounded-lg">
+                <button type="button" id="btnCurrencyUSD" class="py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-sm transition-all">USD ($)</button>
+                <button type="button" id="btnCurrencyBRL" class="py-1.5 text-xs font-semibold rounded-md text-slate-500 hover:text-slate-800 transition-all">BRL (R$)</button>
+              </div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label for="exchangeRate" class="text-xs font-medium text-slate-600">Cotação do Dólar (R$)</label>
+                <button type="button" id="btnFetchRate" class="text-[11px] text-blue-600 hover:text-blue-700 underline font-medium">Buscar agora</button>
+              </div>
+              <div class="relative">
+                <span class="absolute left-3 top-2.5 text-xs text-slate-400">R$</span>
+                <input type="number" id="exchangeRate" step="0.001" min="0.01" value="5.500" class="w-full pl-8 pr-3 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bloco 2: Itens e Logística Internacional -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+            <span>📦</span> Custo Aduaneiro (CIF)
+          </h2>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="productValue" class="block text-xs font-medium text-slate-600 mb-1">Valor dos Produtos (<span class="currencyLabel">USD</span>)</label>
+              <div class="relative">
+                <span class="absolute left-3 top-2.5 text-xs text-slate-400 currencyPrefix">$</span>
+                <input type="number" id="productValue" step="0.01" min="0" value="100.00" class="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
+            </div>
+            <div>
+              <label for="productQuantity" class="block text-xs font-medium text-slate-600 mb-1">Quantidade de Peças / Itens</label>
+              <input type="number" id="productQuantity" step="1" min="1" value="1" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="shippingValue" class="block text-xs font-medium text-slate-600 mb-1">Frete Internacional (<span class="currencyLabel">USD</span>)</label>
+              <div class="relative">
+                <span class="absolute left-3 top-2.5 text-xs text-slate-400 currencyPrefix">$</span>
+                <input type="number" id="shippingValue" step="0.01" min="0" value="30.00" class="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
+            </div>
+            <div>
+              <label for="insuranceValue" class="block text-xs font-medium text-slate-600 mb-1">Seguro Internacional (<span class="currencyLabel">USD</span>)</label>
+              <div class="relative">
+                <span class="absolute left-3 top-2.5 text-xs text-slate-400 currencyPrefix">$</span>
+                <input type="number" id="insuranceValue" step="0.01" min="0" value="0.00" class="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 flex justify-between items-center text-xs">
+            <span class="text-slate-600 font-medium">Base Aduaneira (Produtos + Frete + Seguro):</span>
+            <span id="cifDisplay" class="font-bold text-slate-900 font-mono text-sm">US$ 130,00</span>
+          </div>
+        </div>
+
+        <!-- Bloco 3: Despesas Operacionais e Câmbio -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
+          <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+            <span>✈️</span> Modalidade & Despesas Operacionais
+          </h2>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label for="shippingCarrier" class="block text-xs font-medium text-slate-600 mb-1">Transportadora / Desembaraço</label>
+              <select id="shippingCarrier" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="correios">Correios (Despacho Postal)</option>
+                <option value="courier">Courier Express (DHL, FedEx, UPS)</option>
+                <option value="none">Isento / Sem taxa administrativa</option>
+              </select>
+            </div>
+            <div>
+              <label for="clearanceFee" class="block text-xs font-medium text-slate-600 mb-1">Taxa de Desembaraço / Manuseio (R$)</label>
+              <div class="relative">
+                <span class="absolute left-3 top-2.5 text-xs text-slate-400">R$</span>
+                <input type="number" id="clearanceFee" step="0.01" min="0" value="16.60" class="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+            <div>
+              <label for="iofPreset" class="block text-xs font-medium text-slate-600 mb-1">Tipo de Pagamento (IOF)</label>
+              <select id="iofPreset" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="1.1">Câmbio / Conta Global / Comercial (1,10%)</option>
+                <option value="4.38">Cartão de Crédito Internacional (4,38%)</option>
+                <option value="custom">Outra alíquota</option>
+              </select>
+            </div>
+            <div>
+              <label for="iofRate" class="block text-xs font-medium text-slate-600 mb-1">Alíquota IOF (%)</label>
+              <div class="relative">
+                <input type="number" id="iofRate" step="0.01" min="0" value="1.10" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <span class="absolute right-3 top-2.5 text-xs text-slate-400">%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Painel de Resultados -->
+      <section class="lg:col-span-6 space-y-6">
+        
+        <!-- Cartão Principal de Custo Total -->
+        <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl shadow-lg p-6 border border-slate-800">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-xs uppercase tracking-wider text-slate-400 font-medium">Custo Total Desembarcado (Landed Cost)</p>
+              <div class="text-3xl sm:text-4xl font-extrabold tracking-tight mt-1 text-white font-mono" id="totalCostBRL">
+                R$ 0,00
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="inline-block px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                ICMS SP 18%
+              </span>
+            </div>
+          </div>
+
+          <div class="mt-6 pt-5 border-t border-slate-700/60 grid grid-cols-2 gap-4 text-left">
+            <div>
+              <p class="text-xs text-slate-400">Custo por Unidade</p>
+              <p class="text-lg font-bold font-mono text-emerald-400" id="unitCostBRL">R$ 0,00</p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-400">Carga Tributária Efetiva</p>
+              <p class="text-lg font-bold font-mono text-amber-400" id="effectiveTaxRate">95,12%</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detalhamento dos Tributos e Custos -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-slate-700">Detalhamento dos Custos</h3>
+            <span class="text-xs text-slate-400">Valores em Reais (BRL)</span>
+          </div>
+
+          <div class="p-5 space-y-3 text-sm">
+            <div class="flex justify-between items-center py-1 border-b border-slate-100">
+              <span class="text-slate-600 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span> Valor Aduaneiro CIF (Produtos + Frete + Seg.)
+              </span>
+              <span class="font-mono font-medium text-slate-900" id="rowCifBRL">R$ 0,00</span>
+            </div>
+
+            <div class="flex justify-between items-center py-1 border-b border-slate-100">
+              <span class="text-slate-600 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Imposto de Importação (II 60%)
+              </span>
+              <span class="font-mono font-medium text-rose-600" id="rowIiBRL">R$ 0,00</span>
+            </div>
+
+            <div class="flex justify-between items-center py-1 border-b border-slate-100">
+              <div>
+                <span class="text-slate-600 flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> ICMS SP (18% "por dentro")
+                </span>
+                <p class="text-[11px] text-slate-400 ml-4">Base de cálculo: <span id="rowIcmsBase" class="font-mono">R$ 0,00</span></p>
+              </div>
+              <span class="font-mono font-medium text-amber-600" id="rowIcmsBRL">R$ 0,00</span>
+            </div>
+
+            <div class="flex justify-between items-center py-1 border-b border-slate-100">
+              <span class="text-slate-600 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> IOF Câmbio
+              </span>
+              <span class="font-mono font-medium text-purple-600" id="rowIofBRL">R$ 0,00</span>
+            </div>
+
+            <div class="flex justify-between items-center py-1 border-b border-slate-100">
+              <span class="text-slate-600 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Taxas Operacionais (Courier / Correios)
+              </span>
+              <span class="font-mono font-medium text-slate-900" id="rowClearanceBRL">R$ 0,00</span>
+            </div>
+
+            <div class="flex justify-between items-center pt-2 font-semibold text-slate-900 text-base">
+              <span>Total de Impostos (II + ICMS)</span>
+              <span class="font-mono text-rose-700" id="rowTotalTaxes">R$ 0,00</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gráfico e Resumo Visual -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+          <h3 class="text-sm font-semibold text-slate-700 mb-4">Composição Percentual do Custo</h3>
+          <div class="relative h-56 flex items-center justify-center">
+            <canvas id="costChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Botões de Ação -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <button type="button" id="btnCopySummary" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-medium py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2 transition-all shadow-sm">
+            <span>📋</span> Copiar Resumo da Simulação
+          </button>
+          <button type="button" onclick="window.print()" class="bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-medium py-2.5 px-4 rounded-lg text-sm flex items-center justify-center gap-2 transition-all">
+            <span>🖨️</span> Imprimir
+          </button>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Seção Informativa e Fórmulas Legais -->
+    <section class="mt-12 bg-white rounded-xl border border-slate-200 p-6 space-y-4">
+      <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+        <span>📖</span> Como é feito o cálculo em São Paulo?
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs text-slate-600 leading-relaxed">
+        <div class="border-l-2 border-blue-500 pl-3">
+          <h4 class="font-semibold text-slate-800 text-sm mb-1">1. Base Aduaneira (CIF)</h4>
+          <p>
+            A soma do valor do produto + frete internacional + seguro. No regime simplificado (RTS), o teto máximo permitido pela Receita Federal é de <strong>US$ 3.000,00</strong> por remessa.
+          </p>
+        </div>
+        <div class="border-l-2 border-rose-500 pl-3">
+          <h4 class="font-semibold text-slate-800 text-sm mb-1">2. Imposto de Importação (II)</h4>
+          <p>
+            Alíquota federal padrão de <strong>60%</strong> aplicada diretamente sobre o valor aduaneiro total.
+          </p>
+        </div>
+        <div class="border-l-2 border-amber-500 pl-3">
+          <h4 class="font-semibold text-slate-800 text-sm mb-1">3. ICMS São Paulo ("Por Dentro")</h4>
+          <p>
+            Em SP, a alíquota padrão é de <strong>18%</strong>. A legislação exige o cálculo "por dentro", onde a base do ICMS é dividida por $(1 - 0{,}18) = 0{,}82$. Isso resulta em uma carga tributária conjunta de aproximadamente <strong>95,12%</strong> sobre o valor CIF.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Rodapé -->
+  <footer class="max-w-6xl mx-auto px-4 py-8 text-center text-xs text-slate-400">
+    Calculadora desenvolvida para simulação aduaneira simplificada (RTS - Decreto-Lei nº 1.804/1980 e Portaria MF).
+  </footer>
+
+  <!-- Lógica JavaScript -->
+  <script>
+    // Estado do App
+    const state = {
+      currency: 'USD',
+      exchangeRate: 5.50,
+      productValue: 100.0,
+      shippingValue: 30.0,
+      insuranceValue: 0.0,
+      quantity: 1,
+      carrier: 'correios',
+      clearanceFee: 16.60,
+      iofRate: 1.10,
+      icmsRate: 0.18 // 18% SP
+    };
+
+    let chartInstance = null;
+
+    // Elementos DOM
+    const elExchangeRate = document.getElementById('exchangeRate');
+    const elHeaderExchangeRate = document.getElementById('headerExchangeRate');
+    const elProductValue = document.getElementById('productValue');
+    const elShippingValue = document.getElementById('shippingValue');
+    const elInsuranceValue = document.getElementById('insuranceValue');
+    const elQuantity = document.getElementById('productQuantity');
+    const elCarrier = document.getElementById('shippingCarrier');
+    const elClearanceFee = document.getElementById('clearanceFee');
+    const elIofPreset = document.getElementById('iofPreset');
+    const elIofRate = document.getElementById('iofRate');
+    const elBtnUSD = document.getElementById('btnCurrencyUSD');
+    const elBtnBRL = document.getElementById('btnCurrencyBRL');
+    const elBtnFetchRate = document.getElementById('btnFetchRate');
+    const elRtsWarning = document.getElementById('rtsWarning');
+
+    // Inicialização do Gráfico
+    function initChart() {
+      const ctx = document.getElementById('costChart').getContext('2d');
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['Custo CIF', 'Imposto Imp. (60%)', 'ICMS SP (18%)', 'IOF', 'Taxa Operacional'],
+          datasets: [{
+            data: [0, 0, 0, 0, 0],
+            backgroundColor: [
+              '#3b82f6', // blue-500
+              '#f43f5e', // rose-500
+              '#f59e0b', // amber-500
+              '#a855f7', // purple-500
+              '#10b981'  // emerald-500
+            ],
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                boxWidth: 12,
+                padding: 12,
+                font: { size: 11, family: 'Inter' }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const val = context.raw || 0;
+                  return ` ${context.label}: R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                }
+              }
+            }
+          },
+          cutout: '65%'
+        }
+      });
+    }
+
+    // Formatação monetária
+    function formatBRL(val) {
+      return 'R$ ' + Number(val || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function formatUSD(val) {
+      return 'US$ ' + Number(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Cálculo Principal
+    function calculate() {
+      const rate = parseFloat(elExchangeRate.value) || 1;
+      const prod = parseFloat(elProductValue.value) || 0;
+      const ship = parseFloat(elShippingValue.value) || 0;
+      const ins = parseFloat(elInsuranceValue.value) || 0;
+      const qty = Math.max(1, parseInt(elQuantity.value) || 1);
+      const fee = parseFloat(elClearanceFee.value) || 0;
+      const iofPercent = (parseFloat(elIofRate.value) || 0) / 100;
+
+      // Cálculo do CIF na moeda original
+      const cifInputCurrency = prod + ship + ins;
+
+      // Conversões para USD (para checar limite de $3.000) e para BRL
+      let cifUSD = 0;
+      let cifBRL = 0;
+
+      if (state.currency === 'USD') {
+        cifUSD = cifInputCurrency;
+        cifBRL = cifInputCurrency * rate;
+      } else {
+        cifUSD = cifInputCurrency / (rate > 0 ? rate : 1);
+        cifBRL = cifInputCurrency;
+      }
+
+      // Verificação do limite RTS (US$ 3.000)
+      if (cifUSD > 3000.01) {
+        elRtsWarning.classList.remove('hidden');
+      } else {
+        elRtsWarning.classList.add('hidden');
+      }
+
+      // Exibição CIF
+      document.getElementById('cifDisplay').innerText = state.currency === 'USD' 
+        ? `${formatUSD(cifUSD)} (${formatBRL(cifBRL)})` 
+        : `${formatBRL(cifBRL)} (${formatUSD(cifUSD)})`;
+
+      // 1. Imposto de Importação (60%)
+      const iiBRL = cifBRL * 0.60;
+
+      // 2. Base de Cálculo do ICMS SP (18% por dentro)
+      // Base ICMS = (CIF + II) / (1 - 0.18)
+      const icmsBaseBRL = (cifBRL + iiBRL) / (1 - state.icmsRate);
+      const icmsBRL = icmsBaseBRL * state.icmsRate;
+
+      // 3. IOF
+      const iofBRL = cifBRL * iofPercent;
+
+      // 4. Taxas Operacionais
+      const clearanceBRL = fee;
+
+      // Totais
+      const totalTaxesBRL = iiBRL + icmsBRL;
+      const totalCostBRL = cifBRL + totalTaxesBRL + iofBRL + clearanceBRL;
+      const unitCostBRL = totalCostBRL / qty;
+
+      // Carga tributária efetiva sobre o valor aduaneiro
+      const effectiveRate = cifBRL > 0 ? ((totalTaxesBRL / cifBRL) * 100).toFixed(2) : '0.00';
+
+      // Atualização da UI
+      document.getElementById('totalCostBRL').innerText = formatBRL(totalCostBRL);
+      document.getElementById('unitCostBRL').innerText = formatBRL(unitCostBRL);
+      document.getElementById('effectiveTaxRate').innerText = effectiveRate + '%';
+
+      document.getElementById('rowCifBRL').innerText = formatBRL(cifBRL);
+      document.getElementById('rowIiBRL').innerText = formatBRL(iiBRL);
+      document.getElementById('rowIcmsBRL').innerText = formatBRL(icmsBRL);
+      document.getElementById('rowIcmsBase').innerText = formatBRL(icmsBaseBRL);
+      document.getElementById('rowIofBRL').innerText = formatBRL(iofBRL);
+      document.getElementById('rowClearanceBRL').innerText = formatBRL(clearanceBRL);
+      document.getElementById('rowTotalTaxes').innerText = formatBRL(totalTaxesBRL);
+
+      elHeaderExchangeRate.innerText = formatBRL(rate);
+
+      // Atualiza Gráfico
+      if (chartInstance) {
+        chartInstance.data.datasets[0].data = [
+          parseFloat(cifBRL.toFixed(2)),
+          parseFloat(iiBRL.toFixed(2)),
+          parseFloat(icmsBRL.toFixed(2)),
+          parseFloat(iofBRL.toFixed(2)),
+          parseFloat(clearanceBRL.toFixed(2))
+        ];
+        chartInstance.update();
+      }
+    }
+
+    // Alternar Moeda
+    function setCurrency(curr) {
+      if (state.currency === curr) return;
+      state.currency = curr;
+
+      if (curr === 'USD') {
+        elBtnUSD.className = "py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-sm transition-all";
+        elBtnBRL.className = "py-1.5 text-xs font-semibold rounded-md text-slate-500 hover:text-slate-800 transition-all";
+        document.querySelectorAll('.currencyLabel').forEach(el => el.innerText = 'USD');
+        document.querySelectorAll('.currencyPrefix').forEach(el => el.innerText = '$');
+      } else {
+        elBtnBRL.className = "py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-sm transition-all";
+        elBtnUSD.className = "py-1.5 text-xs font-semibold rounded-md text-slate-500 hover:text-slate-800 transition-all";
+        document.querySelectorAll('.currencyLabel').forEach(el => el.innerText = 'BRL');
+        document.querySelectorAll('.currencyPrefix').forEach(el => el.innerText = 'R$');
+      }
+      calculate();
+    }
+
+    // Buscar Cotação em Tempo Real (AwesomeAPI)
+    async function fetchExchangeRate() {
+      elBtnFetchRate.innerText = 'Buscando...';
+      try {
+        const res = await fetch('https://economia.awesomeapi.com.br/last/USD-BRL');
+        const data = await res.json();
+        if (data && data.USDBRL && data.USDBRL.bid) {
+          const bid = parseFloat(data.USDBRL.bid);
+          elExchangeRate.value = bid.toFixed(3);
+          calculate();
+          elBtnFetchRate.innerText = 'Atualizado!';
+        } else {
+          elBtnFetchRate.innerText = 'Indisponível';
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar cotação:', err);
+        elBtnFetchRate.innerText = 'Erro ao buscar';
+      }
+      setTimeout(() => {
+        elBtnFetchRate.innerText = 'Buscar agora';
+      }, 3000);
+    }
+
+    // Copiar Resumo
+    function copySummary() {
+      const total = document.getElementById('totalCostBRL').innerText;
+      const unit = document.getElementById('unitCostBRL').innerText;
+      const cif = document.getElementById('rowCifBRL').innerText;
+      const ii = document.getElementById('rowIiBRL').innerText;
+      const icms = document.getElementById('rowIcmsBRL').innerText;
+      const taxa = document.getElementById('rowClearanceBRL').innerText;
+      const cotacao = elExchangeRate.value;
+      const qtd = elQuantity.value;
+
+      const texto = `📦 Resumo Importação Simplificada (SP)
+Cotação Dólar: R$ ${cotacao}
+Qtd Peças: ${qtd}
+----------------------------------------
+Base CIF (Produtos + Frete): ${cif}
+Imposto de Importação (60%): ${ii}
+ICMS SP (18% por dentro): ${icms}
+Taxa de Desembaraço/Correios: ${taxa}
+----------------------------------------
+Custo Total Desembarcado: ${total}
+Custo Unitário: ${unit} por peça`;
+
+      navigator.clipboard.writeText(texto).then(() => {
+        const btn = document.getElementById('btnCopySummary');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span>✅</span> Copiado com sucesso!';
+        btn.classList.replace('bg-slate-900', 'bg-emerald-600');
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.classList.replace('bg-emerald-600', 'bg-slate-900');
+        }, 2500);
+      });
+    }
+
+    // Event Listeners
+    elBtnUSD.addEventListener('click', () => setCurrency('USD'));
+    elBtnBRL.addEventListener('click', () => setCurrency('BRL'));
+    elBtnFetchRate.addEventListener('click', fetchExchangeRate);
+    document.getElementById('btnCopySummary').addEventListener('click', copySummary);
+
+    [elExchangeRate, elProductValue, elShippingValue, elInsuranceValue, elQuantity, elClearanceFee, elIofRate].forEach(input => {
+      input.addEventListener('input', calculate);
+    });
+
+    elCarrier.addEventListener('change', (e) => {
+      if (e.target.value === 'correios') {
+        elClearanceFee.value = '16.60';
+      } else if (e.target.value === 'courier') {
+        elClearanceFee.value = '95.00';
+      } else {
+        elClearanceFee.value = '0.00';
+      }
+      calculate();
+    });
+
+    elIofPreset.addEventListener('change', (e) => {
+      if (e.target.value !== 'custom') {
+        elIofRate.value = e.target.value;
+        calculate();
+      }
+    });
+
+    // Inicialização ao carregar
+    window.addEventListener('DOMContentLoaded', () => {
+      initChart();
+      calculate();
+      fetchExchangeRate(); // tenta sincronizar o câmbio atualizado
+    });
+  </script>
+</body>
+</html>
